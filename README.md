@@ -44,7 +44,7 @@ Close LiveSplit while you run in GHOST so the two don't save over each other.
 | **Speedrun Timer** | A LiveSplit-style timer built for runners, and built so LiveSplit runners can switch without losing anything. **Import from LiveSplit** finds your LiveSplit folder and brings over every splits file (PB, gold splits, full attempt history, custom comparisons, game times, icons and auto splitter settings), your hotkeys and how your layout looks. Imported `.lss` files stay **linked**: GHOST saves each attempt back into them and loads changes LiveSplit makes, so you can go back and forth with the same file. Compare against Personal Best, Best / Average / Median / Worst Segments, Latest Run or your own comparisons, and switch with hotkeys. The splits editor works like LiveSplit's: type split, segment and best times straight into the table. Pick the *LiveSplit classic*, *GHOST* or *Minimal* look, with live deltas, gold segments, Sum of Best, Best Possible Time and Previous Segment, plus an always-on-top overlay you can lock click-through. The overlay can show the full splits layout or just a **big clock** (like the stream's Big clock), with the current split and delta underneath if you want them. Also: templates for every raid, dungeon, exotic mission and campaign, practice mode, a start countdown, double-tap prevention, undo all pauses, two-press reset, a run that survives restarting GHOST, and one-click results for Discord and speedrun.com. |
 | **Stream** | Put GHOST on your stream. The **overlay link builder** has four sources: the timer and splits, a big clock, the Oracle counter and a stats bar. Pick one, adjust its look, size and background with simple controls, and see a **live preview**. Then copy the link and the exact OBS size to use. **OBS text files** feed Text sources. **Streamer mode** hides your account names and can hide the GHOST window from OBS and Discord capture completely. |
 | **Oracle Counter** | The original tool. Log numbers with the numpad, number row or custom keys, then send them as typed keys or a paste. Adds undo, a history of recent sends, and an overlay with opacity, font size and snap positions. |
-| **Weapon Overlay** | A floating, always-on-top panel showing stats, an approximate PvP TTK and perk columns. Choose the area of the screen where the weapon name shows and OCR detects the weapon you're inspecting (by hotkey or automatically while Destiny is focused). |
+| **Weapon Overlay** | Inspect a weapon in Destiny (or open/drop a screenshot) and GHOST finds the inspect screen by itself (no area to set up), reads the name and the perk icons, rates the roll for PvE, PvP, General or Custom (Roll Quality, God Roll Match, Confidence, Completeness, S–D perk tiers), shows the best roll your copy can run and other builds, and saves every copy to your roll book. A floating panel in the top-right corner opens only on the weapon's inspect screen (the perk grid and the "WEAPON PERKS" heading must be on screen, not just the name) and closes when you leave (Ctrl + wheel resizes it). Screenshots can be opened, dropped, pasted (Ctrl+V) or picked up from a watched screenshots folder. "What GHOST read" shows every read with its confidence and lets you fix it. |
 | **DIM · Godroll.tv · D2TTK · D2ArmorPicker** | Full browser tabs with real logins, cookies and sessions. Each one remembers the last page you were on and its zoom. You can add your own sites in Settings → Sites. |
 | **Accounts** | Several Bungie logins signed in at once. Each has its own isolated profile. You can switch per tab or globally. |
 | **Settings** | 8 accent themes (plus a custom colour), drag-to-reorder or hide tabs, every global hotkey, tray and startup options, sites, and export/import/reset. |
@@ -124,22 +124,38 @@ Inside the app:
 ```
 start.bat               run GHOST from source (installs requirements on first run)
 build.bat               build dist\ghost-installer.exe        (build.bat fast = quick unprotected test build)
-release.bat             release a new version: version, changelog, build, publish
-tools\build.py          what build.bat and release.bat run (the installer script is in it too)
+tools\build.py          what build.bat runs (the installer script is in it too)
 ```
 
 ### Releasing a new version
 
-Double-click **`release.bat`** (or run `release.bat 4.8.0`):
+1. Set the new version in `ghost/__init__.py` (`APP_VERSION = "4.8.0"`).
+2. Add a `## 4.8.0: title` section at the top of `CHANGELOG.md` with what's new. GHOST shows it in "What's new".
+3. Double-click **`build.bat`**. It builds and checks GHOST, makes **`dist\ghost-installer.exe`**, and saves the
+   notes to `dist\release-notes.txt`. If that version is already on the release page, it offers to bump it for you
+   (every update needs a new version, or GHOST won't offer it to anyone).
+4. On GitHub (github.com/aio-kit/ghost/releases/new): tag `4.8.0`, attach `ghost-installer.exe` (keep that name),
+   paste the notes, and publish it as a normal release. Everyone's GHOST then offers the update by itself.
 
-1. It asks for the new version (the next patch number is filled in) and sets it in `ghost/__init__.py`.
-2. It opens `CHANGELOG.md` with a new section. Write what's new, save, close Notepad.
-3. It builds and checks GHOST, then makes **`dist\ghost-installer.exe`**.
-4. It publishes: with a release page set up (see below) it uploads the installer to GitHub and everyone's GHOST
-   offers the update by itself. It also saves `dist\release-notes.txt` to paste into your Discord announcement.
+### Tests
 
-To build without releasing (to test something), use **`build.bat`**. Every build writes everything it does to
-`build\build-log.txt`; if a build fails, that file says why.
+```
+python tests/run_tests.py     matching, scoring, roll book and perk-reading tests (no Qt or internet needed)
+```
+
+### Weapon scoring
+
+- `%APPDATA%\GHOST\scoring.json` (created on first run): tier values, the community-share cutoffs for S–D, column
+  weights, label thresholds, the confidence / completeness needed before a roll is rated, synergy rules
+  (`{"perks": ["A", "B"], "points": 5, "profile": "pve", "note": "why"}`) and your own perk ratings
+  (`"custom_ratings": {"*": {"Perk": "S"}, "Weapon Name": {"Perk": "A"}}`; they override every profile, and Custom uses community PvE tiers for perks you haven't rated).
+  Click **Reload them** on the page after editing. A broken file falls back to the defaults (it isn't overwritten).
+- `%APPDATA%\GHOST\aliases.json`: OCR misreadings to fix, `"what OCR reads": "Real Name"`.
+- Game data (names, hashes, perk pools, icons) comes from Bungie's manifest and is cached for offline use; tiers and
+  recommended rolls come from the community wish list and are opinions. GHOST never makes up a perk or a score:
+  unsure reads are shown as "to check" / Unverified.
+
+Every build writes everything it does to `build\build-log.txt`; if a build fails, that file says why.
 
 **What the build does:** installs anything missing, compiles GHOST to machine code with Nuitka (so the code can't
 simply be unpacked; the first build takes 10-30 minutes, later ones are much faster), removes files GHOST never
@@ -147,10 +163,7 @@ uses, starts the new GHOST.exe once in a self-check mode to make sure nothing is
 with Inno Setup (installed automatically the first time). If the protected build fails, it explains the usual fix
 and asks before making an unprotected build instead.
 
-**Setting up the release page (once):** make a public GitHub repo that only holds releases (your code stays
-private), put its `owner/name` in `APP_REPO` in `ghost/__init__.py`, install the GitHub CLI
-(`winget install GitHub.cli`) and run `gh auth login`. Without it, `release.bat` still builds everything and you
-upload `ghost-installer.exe` yourself (Google Drive, a GitHub release, ...).
+**The release page:** `APP_REPO` in `ghost/__init__.py` (`aio-kit/ghost`) is where GHOST looks for updates.
 
 **Sharing on Discord:** without Nitro, attachments are limited to 10 MB and the installer is bigger, so post a
 link to it instead.
@@ -165,7 +178,15 @@ ghost/hotkeys.py     one global keyboard hook shared by every feature
 ghost/winput.py      Win32 SendInput (scancodes), dark title bar, startup entry
 ghost/accounts.py    per-account isolated browser profiles
 ghost/weapons.py     manifest download → compact weapon DB, search, OCR matching, TTK
-ghost/ocr.py         screen capture + Windows OCR / Tesseract
+ghost/ocr.py         screen capture + Windows OCR / Tesseract (unchanged pictures aren't read again)
+ghost/matching.py    OCR text → real names: normalising, OCR fixes, aliases, careful fuzzy matching
+ghost/perkscan.py    finds the perk icons on the inspect screen and recognises them (verified / unverified)
+ghost/perkicons.py   downloads and caches Bungie's perk icons
+ghost/scoring.py     the roll scoring engine (no Qt): tiers, combinations, synergy, labels, explanations
+ghost/godroll.py     community recommended rolls (DIM wish list), roles
+ghost/rollbook.py    your saved copies of each weapon
+ghost/weaponcard.py  the weapon panel shown in the overlay and on the page
+tests/               python tests/run_tests.py
 ghost/overlays.py    counter overlay, timer overlay, weapon panel, region picker
 ghost/speedrun.py    speedrun engine: splits, PB, golds, comparisons, LiveSplit .lss / settings / layouts
 ghost/streamkit.py   OBS browser-source server (127.0.0.1) and OBS text files
